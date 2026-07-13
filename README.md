@@ -8,7 +8,7 @@ API RESTful para gestionar tareas, construida con Node.js, Express y MongoDB.
 - **Framework**: Express
 - **Base de datos**: MongoDB (Mongoose ODM)
 - **Validaciones**: Zod
-- **Despliegue**: Railway
+- **Despliegue**: Render
 
 ## Instalación y Ejecución en Local
 
@@ -59,7 +59,7 @@ El servidor estará disponible en `http://localhost:3000`
 ### Base URL
 
 - **Local**: `http://localhost:3000`
-- **Producción**: `[URL_PÚBLICA_DE_RAILWAY]`
+- **Producción**: `https://javascript-101.onrender.com`
 
 ### Obtener todas las tareas
 
@@ -193,9 +193,7 @@ DELETE /api/todos/:id
 
 ## URL Pública (Producción)
 
-**Railway**: [TU_URL_DE_RAILWAY_AQUÍ]
-
-> Nota: Recuerda configurar las variables de entorno en Railway con tu `MONGO_URI` de MongoDB Atlas.
+**Render**: https://javascript-101.onrender.com
 
 ## Estructura del Proyecto
 
@@ -228,12 +226,18 @@ javascript-101/
 | MONGO_URI | URI de conexión a MongoDB | `mongodb+srv://...` |
 | NODE_ENV | Modo de ejecución | `development` o `production` |
 
-## Despliegue en Railway
+## Despliegue en Render
 
-1. Crear cuenta en [Railway](https://railway.app)
-2. Conectar el repositorio de GitHub
-3. Configurar las variables de entorno en el dashboard de Railway
-4. Railway desplegará automáticamente
+1. Crear cuenta en [Render](https://render.com) con GitHub
+2. **New +** → **Web Service** → Conectar repositorio
+3. Configurar:
+   - Build Command: `npm install`
+   - Start Command: `node --dns-result-order=ipv4first server.js`
+   - Plan: Free
+4. Agregar Environment Variables:
+   - `MONGO_URI`: URI de MongoDB Atlas
+   - `NODE_ENV`: `production`
+5. Crear el servicio
 
 ## Licencia
 
