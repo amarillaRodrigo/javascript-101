@@ -47,6 +47,25 @@ app.get('/api/todos/:id', (req, res) => {
   res.json({ success: true, data: toTask(row) });
 });
 
+app.post('/api/todos', (req, res) => {
+  const { title, done } = req.body ?? {};
+
+  if (typeof title !== 'string' || title.trim() === '') {
+    return res.status(400).json({ success: false, error: 'Title is required' });
+  }
+
+  if (done !== undefined && typeof done !== 'boolean') {
+    return res.status(400).json({ success: false, error: 'Done must be a boolean' });
+  }
+
+  const insert = db.prepare('INSERT INTO tasks (title, done) VALUES (?, ?)');
+  const result = insert.run(title.trim(), done ? 1 : 0);
+  const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
+
+  res.status(201).json({ success: true, data: toTask(row) });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
