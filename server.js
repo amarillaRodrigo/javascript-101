@@ -1,11 +1,22 @@
 require('dotenv').config();
-const app = require('./src/app');
-const connectDB = require('./src/config/database');
+
+require('./src/db');
+
+const express = require('express');
+
+const app = express();
+app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Todo API running on SQLite',
+    db: process.env.DB_PATH || 'tasks.db',
   });
 });
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
