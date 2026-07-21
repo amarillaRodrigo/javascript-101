@@ -1,244 +1,207 @@
-# Todo API
+# Todo API (SQLite)
 
-API RESTful para gestionar tareas, construida con Node.js, Express y MongoDB.
+A lightweight RESTful API for managing tasks, built with Node.js, Express
+and SQLite. Persistence is provided by a single `tasks.db` file that is
+created and seeded automatically the first time the server boots.
 
-## Stack Tecnológico
+![SQLite viewer](docs/screenshots/sqlite-viewer.png)
 
-- **Runtime**: Node.js
-- **Framework**: Express
-- **Base de datos**: MongoDB (Mongoose ODM)
-- **Validaciones**: Zod
-- **Despliegue**: Render
+## Why SQLite
 
-## Instalación y Ejecución en Local
+- **Zero configuration.** No external server, no driver install, no
+  network. The whole database is a single file on disk.
+- **Built into Node.js.** This project uses the `node:sqlite` module
+  shipped with Node 22.5+, so no native dependency has to be compiled.
+- **Perfect for dev and small deployments.** Reads are fast, the file
+  is portable, and you can inspect it with any SQLite client.
+- **Same API, different storage.** When the time comes to move to
+  PostgreSQL, MySQL or another engine, only the data layer changes; the
+  HTTP endpoints stay identical.
 
-### Prerrequisitos
+## Stack
 
-- Node.js (v18 o superior)
-- npm
-- Cuenta en [MongoDB Atlas](https://www.mongodb.com/atlas) (para base de datos en la nube)
+- **Runtime:** Node.js 22.5+ (uses built-in `node:sqlite`)
+- **Framework:** Express 5
+- **Database:** SQLite (file-based, `tasks.db`)
+- **Config:** `dotenv`
 
-### Pasos
+## Prerequisites
 
-1. Clonar el repositorio:
+- Node.js **v22.5.0 or newer** (the project relies on `node:sqlite`).
+  Verify with:
+
+  ```bash
+  node -v
+  ```
+
+## Installation
+
 ```bash
-git clone <url-del-repositorio>
+git clone https://github.com/amarillaRodrigo/javascript-101.git
 cd javascript-101
-```
-
-2. Instalar dependencias:
-```bash
 npm install
-```
-
-3. Configurar variables de entorno:
-```bash
 cp .env.example .env
 ```
 
-4. Editar el archivo `.env` con tus credenciales de MongoDB Atlas:
+`.env` defaults to:
+
 ```
 PORT=3000
-MONGO_URI=mongodb+srv://<usuario>:<password>@cluster0.xxxxx.mongodb.net/todosDB?retryWrites=true&w=majority
+DB_PATH=tasks.db
 NODE_ENV=development
 ```
 
-5. Iniciar el servidor:
+Override `DB_PATH` if you want the database file to live somewhere else
+(e.g. on a Render persistent disk: `/var/data/tasks.db`).
+
+## Running
+
 ```bash
-# Producción
-npm start
-
-# Desarrollo (con auto-reload)
-npm run dev
+npm run dev      # development with --watch (auto-reload)
+npm start        # plain node server.js
 ```
 
-El servidor estará disponible en `http://localhost:3000`
+On the very first boot the app will:
 
-## Endpoints Disponibles
+1. Create `tasks.db` next to `server.js` (or at `DB_PATH` if set).
+2. Create the `tasks` table if it does not exist.
+3. Insert three example tasks **only if the table is empty**.
 
-### Base URL
-
-- **Local**: `http://localhost:3000`
-- **Producción**: `https://javascript-101.onrender.com`
-
-### Obtener todas las tareas
+Every subsequent restart logs:
 
 ```
-GET /api/todos
+[db] tasks.db already has N row(s), skipping seed
 ```
 
-**Respuesta (200)**:
+## Database
+
+| Property      | Value                                     |
+|---------------|-------------------------------------------|
+| Engine        | SQLite                                    |
+| File          | `tasks.db` at the repo root (or `DB_PATH`)|
+| Auto-created  | Yes, on first open                        |
+| Auto-seeded   | Yes, only when the table is empty         |
+
+### Schema
+
+```sql
+CREATE TABLE tasks (
+  id    INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT    NOT NULL,
+  done  INTEGER NOT NULL DEFAULT 0
+);
+```
+
+`done` is stored as `0`/`1`; the API exposes it as a real boolean.
+
+### Seed data (first run only)
+
+| id | title                     | done |
+|----|---------------------------|------|
+| 1  | Comprar leche             | 0    |
+| 2  | Estudiar Express + SQLite | 0    |
+| 3  | Hacer deploy en Render    | 1    |
+
+### Example SQL query
+
+Mark every task as completed:
+
+```sql
+UPDATE tasks SET done = 1;
+```
+
+The five queries used during the W3 · A1 exploration are preserved at
+[`docs/sql-explore.sql`](docs/sql-explore.sql).
+
+## API endpoints
+
+Base URL: `http://localhost:3000`
+
+| Method | Path              | Description                  |
+|--------|-------------------|------------------------------|
+| GET    | `/`               | Health check + DB path       |
+| GET    | `/api/todos`      | List all tasks               |
+| GET    | `/api/todos/:id`  | Get one task                 |
+| POST   | `/api/todos`      | Create a task (201 / 400)    |
+| PUT    | `/api/todos/:id`  | Update a task (200 / 404 / 400) |
+| DELETE | `/api/todos/:id`  | Delete a task (200 / 404)    |
+
+### Create
+
+```bash
+curl -X POST http://localhost:3000/api/todos \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Sacar la basura"}'
+```
+
+`title` is required and trimmed. `done` is optional and must be a boolean
+(defaults to `false`). Returns **400** when invalid, **201** on success.
+
+### Update
+
+```bash
+curl -X PUT http://localhost:3000/api/todos/1 \
+  -H "Content-Type: application/json" \
+  -d '{"done":true}'
+```
+
+Partial update: send `title`, `done`, or both. Empty `title` returns
+**400**. Unknown id returns **404**.
+
+### Delete
+
+```bash
+curl -X DELETE http://localhost:3000/api/todos/1
+```
+
+Returns **200** `{ "success": true, "data": {} }` or **404** if the id
+does not exist.
+
+### Error shape
+
 ```json
-{
-  "success": true,
-  "count": 2,
-  "data": [
-    {
-      "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
-      "title": "Comprar víveres",
-      "description": "Leche, huevos, pan",
-      "completed": false,
-      "createdAt": "2024-01-15T10:30:00.000Z",
-      "updatedAt": "2024-01-15T10:30:00.000Z"
-    }
-  ]
-}
+{ "success": false, "error": "Task not found" }
 ```
 
-### Crear una tarea
-
-```
-POST /api/todos
-```
-
-**Body (JSON)**:
 ```json
-{
-  "title": "Comprar víveres",
-  "description": "Leche, huevos, pan (opcional)",
-  "completed": false (opcional, default: false)
-}
+{ "success": false, "error": "Title is required" }
 ```
 
-**Campos requeridos**:
-| Campo | Tipo | Requerido | Descripción |
-|-------|------|-----------|-------------|
-| title | string | Sí | Título de la tarea (max 100 caracteres) |
-| description | string | No | Descripción (max 500 caracteres) |
-| completed | boolean | No | Estado de la tarea (default: false) |
+## Deployment to Render
 
-**Respuesta (201)**:
-```json
-{
-  "success": true,
-  "data": {
-    "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
-    "title": "Comprar víveres",
-    "description": "Leche, huevos, pan",
-    "completed": false,
-    "createdAt": "2024-01-15T10:30:00.000Z",
-    "updatedAt": "2024-01-15T10:30:00.000Z"
-  }
-}
-```
+SQLite is a single file, so the host needs a **persistent disk** between
+deploys. Render's free Web Services do not include one; on the Standard
+plan attach a disk and point `DB_PATH` to it.
 
-**Errores de validación (400)**:
-```json
-{
-  "success": false,
-  "errors": [
-    {
-      "field": "title",
-      "message": "Title is required"
-    }
-  ]
-}
-```
+1. New + → Web Service → connect this repo.
+2. Build Command: `npm install`
+3. Start Command: `node server.js`
+4. Add a persistent disk mounted at `/var/data`.
+5. Environment variables:
+   - `DB_PATH=/var/data/tasks.db`
+   - `NODE_ENV=production`
 
-### Actualizar una tarea
+Without a persistent disk the database resets on every redeploy, which is
+fine for demos but not for real use.
 
-```
-PUT /api/todos/:id
-```
-
-**Parámetro**: `id` - ID de la tarea (MongoDB ObjectId)
-
-**Body (JSON)** - Todos los campos son opcionales:
-```json
-{
-  "title": "Comprar víveres actualizado",
-  "description": "Nueva descripción",
-  "completed": true
-}
-```
-
-**Respuesta (200)**:
-```json
-{
-  "success": true,
-  "data": {
-    "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
-    "title": "Comprar víveres actualizado",
-    "description": "Nueva descripción",
-    "completed": true,
-    "createdAt": "2024-01-15T10:30:00.000Z",
-    "updatedAt": "2024-01-15T11:00:00.000Z"
-  }
-}
-```
-
-**Errores**:
-- `400`: ID inválido
-- `404`: Tarea no encontrada
-
-### Eliminar una tarea
-
-```
-DELETE /api/todos/:id
-```
-
-**Parámetro**: `id` - ID de la tarea (MongoDB ObjectId)
-
-**Respuesta (200)**:
-```json
-{
-  "success": true,
-  "data": {}
-}
-```
-
-**Errores**:
-- `400`: ID inválido
-- `404`: Tarea no encontrada
-
-## URL Pública (Producción)
-
-**Render**: https://javascript-101.onrender.com
-
-## Estructura del Proyecto
+## Project structure
 
 ```
 javascript-101/
+├── docs/
+│   ├── screenshots/
+│   │   └── sqlite-viewer.png
+│   └── sql-explore.sql
 ├── src/
-│   ├── config/
-│   │   └── database.js        # Conexión a MongoDB
-│   ├── controllers/
-│   │   └── todoController.js  # Lógica de negocio CRUD
-│   ├── middleware/
-│   │   ├── errorHandler.js    # Manejo centralizado de errores
-│   │   └── validate.js        # Middleware de validación Zod
-│   ├── models/
-│   │   └── Todo.js            # Modelo Mongoose
-│   ├── routes/
-│   │   └── todoRoutes.js      # Definición de rutas
-│   ├── schemas/
-│   │   └── todoSchema.js      # Schemas de validación Zod
-│   └── app.js                 # Configuración de Express
-├── .env.example               # Plantilla de variables de entorno
-├── .env                       # Variables de entorno (no commitear)
+│   └── db.js                # opens tasks.db, creates schema, seeds
+├── server.js                # Express app + CRUD endpoints
+├── tasks.db                 # auto-generated, ignored by git
+├── .env.example
 ├── .gitignore
 ├── package.json
-├── README.md
-└── server.js                  # Punto de entrada
-```A
-|----------|-------------|---------|
-| PORT | Puerto del servidor | `3000` |
-| MONGO_URI | URI de conexión a MongoDB | `mongodb+srv://...` |
-| NODE_ENV | Modo de ejecución | `development` o `production` |
+└── README.md
+```
 
-## Despliegue en Render
-
-1. Crear cuenta en [Render](https://render.com) con GitHub
-2. **New +** → **Web Service** → Conectar repositorio
-3. Configurar:
-   - Build Command: `npm install`
-   - Start Command: `node --dns-result-order=ipv4first server.js`
-   - Plan: Free
-4. Agregar Environment Variables:
-   - `MONGO_URI`: URI de MongoDB Atlas
-   - `NODE_ENV`: `production`
-5. Crear el servicio
-
-## Licencia
+## License
 
 ISC
