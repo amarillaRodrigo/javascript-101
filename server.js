@@ -65,7 +65,58 @@ app.post('/api/todos', (req, res) => {
   res.status(201).json({ success: true, data: toTask(row) });
 });
 
+app.put('/api/todos/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(404).json({ success: false, error: 'Task not found' });
+  }
+
+  const { title, done } = req.body ?? {};
+
+  if (title !== undefined && (typeof title !== 'string' || title.trim() === '')) {
+    return res.status(400).json({ success: false, error: 'Title cannot be empty' });
+  }
+
+  if (done !== undefined && typeof done !== 'boolean') {
+    return res.status(400).json({ success: false, error: 'Done must be a boolean' });
+  }
+
+  const result = db
+    .prepare(
+      'UPDATE tasks SET title = COALESCE(?, title), done = COALESCE(?, done) WHERE id = ?'
+    )
+    .run(
+      title !== undefined ? title.trim() : null,
+      done !== undefined ? (done ? 1 : 0) : null,
+      id
+    );
+
+  if (result.changes === 0) {
+    return res.status(404).json({ success: false, error: 'Task not found' });
+  }
+
+  const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  res.json({ success: true, data: toTask(row) });
+});
+
+app.delete('/api/todos/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(404).json({ success: false, error: 'Task not found' });
+  }
+
+  const result = db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ success: false, error: 'Task not found' });
+  }
+
+  res.json({ success: true, data: {} });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+
 
