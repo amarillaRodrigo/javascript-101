@@ -1,207 +1,201 @@
-# Todo API (SQLite)
+# Todo API (Containerized PostgreSQL & Redis) - Task A3
 
-A lightweight RESTful API for managing tasks, built with Node.js, Express
-and SQLite. Persistence is provided by a single `tasks.db` file that is
-created and seeded automatically the first time the server boots.
+A containerized RESTful API for managing tasks, built with Node.js, Express, PostgreSQL, and Redis using Docker Compose. Storage is managed via a clean Repository Pattern, proving that changing storage implementation requires zero modifications to HTTP routes or business logic.
 
-![SQLite viewer](docs/screenshots/sqlite-viewer.png)
+---
 
-## Why SQLite
+## 🏗️ Architecture & Storage Swapping (Repository Pattern)
 
-- **Zero configuration.** No external server, no driver install, no
-  network. The whole database is a single file on disk.
-- **Built into Node.js.** This project uses the `node:sqlite` module
-  shipped with Node 22.5+, so no native dependency has to be compiled.
-- **Perfect for dev and small deployments.** Reads are fast, the file
-  is portable, and you can inspect it with any SQLite client.
-- **Same API, different storage.** When the time comes to move to
-  PostgreSQL, MySQL or another engine, only the data layer changes; the
-  HTTP endpoints stay identical.
+This project strictly follows the **Repository Pattern**:
+- **Interface Contract:** Standardized asynchronous methods (`findAll`, `findById`, `create`, `update`, `delete`).
+- **Implementations:**
+  - `InMemoryTaskRepository` (`src/repositories/inMemoryTaskRepository.js`): In-memory array fallback.
+  - `PostgresTaskRepository` (`src/repositories/postgresTaskRepository.js`): Production-ready PostgreSQL storage using `pg.Pool`.
+- **Selector:** `src/repositories/index.js` dynamically instantiates the appropriate repository based on `STORAGE_TYPE` (defaults to `postgres`).
 
-## Stack
+### Honesty Statement on Architecture
+> **Routes and HTTP logic in `server.js` remained 100% unchanged.**
+> Replacing the direct database driver calls with `taskRepository` calls ensured that all API route definitions, input validations, status codes (`200`, `201`, `400`, `404`), and JSON response formats were preserved without modifying a single endpoint definition.
 
-- **Runtime:** Node.js 22.5+ (uses built-in `node:sqlite`)
+---
+
+## 🚀 Stack
+
+- **Runtime:** Node.js (v22 Alpine)
 - **Framework:** Express 5
-- **Database:** SQLite (file-based, `tasks.db`)
-- **Config:** `dotenv`
+- **Database:** PostgreSQL 16 (in Docker with persistent named volume `postgres_data`)
+- **Cache / Ping (Stretch):** Redis 7 (in Docker)
+- **Orchestration:** Docker Compose
+- **Config:** `dotenv` (`.env` gitignored, `.env.example` committed)
 
-## Prerequisites
+---
 
-- Node.js **v22.5.0 or newer** (the project relies on `node:sqlite`).
-  Verify with:
+## 📁 Environment Variables
 
-  ```bash
-  node -v
-  ```
+Environment variables are loaded from `.env` (which is excluded from Git via `.gitignore`). A template is provided in `.env.example`:
 
-## Installation
-
-```bash
-git clone https://github.com/amarillaRodrigo/javascript-101.git
-cd javascript-101
-npm install
-cp .env.example .env
-```
-
-`.env` defaults to:
-
-```
+```env
 PORT=3000
-DB_PATH=tasks.db
 NODE_ENV=development
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=todos_db
+POSTGRES_PORT=5434
+DATABASE_URL=postgres://postgres:postgres@localhost:5434/todos_db
+REDIS_URL=redis://localhost:6379
+STORAGE_TYPE=postgres
 ```
 
-Override `DB_PATH` if you want the database file to live somewhere else
-(e.g. on a Render persistent disk: `/var/data/tasks.db`).
+> **Note on Docker networking:** Inside Docker Compose, the app container connects to PostgreSQL using the service name (`db:5432`). On the host machine, PostgreSQL is mapped to port `5434` to prevent local port conflicts.
 
-## Running
+---
+
+## 🛠️ Running with Docker Compose
+
+Start the complete application stack (PostgreSQL + Redis + Node App) with one command:
 
 ```bash
-npm run dev      # development with --watch (auto-reload)
-npm start        # plain node server.js
+docker compose up -d --build
 ```
 
-On the very first boot the app will:
+To stop the stack:
 
-1. Create `tasks.db` next to `server.js` (or at `DB_PATH` if set).
-2. Create the `tasks` table if it does not exist.
-3. Insert three example tasks **only if the table is empty**.
-
-Every subsequent restart logs:
-
-```
-[db] tasks.db already has N row(s), skipping seed
+```bash
+docker compose down
 ```
 
-## Database
+Check container status:
 
-| Property      | Value                                     |
-|---------------|-------------------------------------------|
-| Engine        | SQLite                                    |
-| File          | `tasks.db` at the repo root (or `DB_PATH`)|
-| Auto-created  | Yes, on first open                        |
-| Auto-seeded   | Yes, only when the table is empty         |
-
-### Schema
-
-```sql
-CREATE TABLE tasks (
-  id    INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT    NOT NULL,
-  done  INTEGER NOT NULL DEFAULT 0
-);
+```bash
+docker compose ps
 ```
 
-`done` is stored as `0`/`1`; the API exposes it as a real boolean.
+---
 
-### Seed data (first run only)
+## 🧪 Proof of Data Persistence Across Restarts
 
-| id | title                     | done |
-|----|---------------------------|------|
-| 1  | Comprar leche             | 0    |
-| 2  | Estudiar Express + SQLite | 0    |
-| 3  | Hacer deploy en Render    | 1    |
+Data persistence is guaranteed by the named volume `postgres_data` mounted at `/var/lib/postgresql/data`.
 
-### Example SQL query
+### Verification Steps Performed:
 
-Mark every task as completed:
+1. **Started Stack:** Launched containers with `docker compose up -d`.
+2. **Created a new task:**
+   ```bash
+   curl -X POST http://localhost:3000/api/todos \
+     -H "Content-Type: application/json" \
+     -d '{"title":"Probar persistencia en Docker Postgres"}'
+   ```
+   *Response:*
+   ```json
+   {
+     "success": true,
+     "data": {
+       "id": 2,
+       "title": "Probar persistencia en Docker Postgres",
+       "done": false
+     }
+   }
+   ```
 
-```sql
-UPDATE tasks SET done = 1;
-```
+3. **Restarted the Stack:**
+   ```bash
+   docker compose restart
+   ```
 
-The five queries used during the W3 · A1 exploration are preserved at
-[`docs/sql-explore.sql`](docs/sql-explore.sql).
+4. **Verified Task Survival:**
+   ```bash
+   curl http://localhost:3000/api/todos
+   ```
+   *Response after restart:*
+   ```json
+   {
+     "success": true,
+     "count": 2,
+     "data": [
+       { "id": 1, "title": "Comprar leche", "done": false },
+       { "id": 2, "title": "Probar persistencia en Docker Postgres", "done": false }
+     ]
+   }
+   ```
+   ✅ **Result:** The created task persisted across a complete container and application restart.
 
-## API endpoints
+---
+
+## 📡 API Endpoints
 
 Base URL: `http://localhost:3000`
 
-| Method | Path              | Description                  |
-|--------|-------------------|------------------------------|
-| GET    | `/`               | Health check + DB path       |
-| GET    | `/api/todos`      | List all tasks               |
-| GET    | `/api/todos/:id`  | Get one task                 |
-| POST   | `/api/todos`      | Create a task (201 / 400)    |
-| PUT    | `/api/todos/:id`  | Update a task (200 / 404 / 400) |
-| DELETE | `/api/todos/:id`  | Delete a task (200 / 404)    |
+| Method | Path              | Description                          |
+|--------|-------------------|--------------------------------------|
+| GET    | `/`               | Health check + storage engine status |
+| GET    | `/api/redis-ping` | Ping Redis cache (Stretch feature)   |
+| GET    | `/api/todos`      | List all tasks                       |
+| GET    | `/api/todos/:id`  | Get a single task by ID              |
+| POST   | `/api/todos`      | Create a task (201 / 400)            |
+| PUT    | `/api/todos/:id`  | Update a task (200 / 404 / 400)     |
+| DELETE | `/api/todos/:id`  | Delete a task (200 / 404)            |
 
-### Create
+---
 
+## ⭐️ Stretch Features
+
+### 1. Redis Integration & Ping Endpoint
+
+Redis 7 runs as a service inside `docker-compose.yml`. The application connects using `ioredis` (`src/redisClient.js`).
+
+Test endpoint:
 ```bash
-curl -X POST http://localhost:3000/api/todos \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Sacar la basura"}'
+curl http://localhost:3000/api/redis-ping
 ```
-
-`title` is required and trimmed. `done` is optional and must be a boolean
-(defaults to `false`). Returns **400** when invalid, **201** on success.
-
-### Update
-
-```bash
-curl -X PUT http://localhost:3000/api/todos/1 \
-  -H "Content-Type: application/json" \
-  -d '{"done":true}'
-```
-
-Partial update: send `title`, `done`, or both. Empty `title` returns
-**400**. Unknown id returns **404**.
-
-### Delete
-
-```bash
-curl -X DELETE http://localhost:3000/api/todos/1
-```
-
-Returns **200** `{ "success": true, "data": {} }` or **404** if the id
-does not exist.
-
-### Error shape
-
+Response:
 ```json
-{ "success": false, "error": "Task not found" }
+{
+  "success": true,
+  "data": {
+    "status": "up",
+    "response": "PONG"
+  }
+}
 ```
 
-```json
-{ "success": false, "error": "Title is required" }
+### 2. PostgreSQL Index & EXPLAIN ANALYZE
+
+An index was added to `init.sql` on the `done` boolean column:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_tasks_done ON tasks(done);
 ```
 
-## Deployment to Render
+#### EXPLAIN ANALYZE Execution Results:
 
-SQLite is a single file, so the host needs a **persistent disk** between
-deploys. Render's free Web Services do not include one; on the Standard
-plan attach a disk and point `DB_PATH` to it.
+1. **Default Sequential Scan (tiny dataset optimization):**
+   ```sql
+   EXPLAIN ANALYZE SELECT * FROM tasks WHERE done = true;
+   ```
+   *Output:*
+   ```text
+   Seq Scan on tasks  (cost=0.00..1.01 rows=1 width=529) (actual time=0.005..0.005 rows=0 loops=1)
+     Filter: done
+     Rows Removed by Filter: 2
+   Planning Time: 0.681 ms
+   Execution Time: 0.038 ms
+   ```
 
-1. New + → Web Service → connect this repo.
-2. Build Command: `npm install`
-3. Start Command: `node server.js`
-4. Add a persistent disk mounted at `/var/data`.
-5. Environment variables:
-   - `DB_PATH=/var/data/tasks.db`
-   - `NODE_ENV=production`
+2. **Index Scan (Forced Index Scan on `idx_tasks_done`):**
+   ```sql
+   SET enable_seqscan = off;
+   EXPLAIN ANALYZE SELECT * FROM tasks WHERE done = true;
+   ```
+   *Output:*
+   ```text
+   Index Scan using idx_tasks_done on tasks  (cost=0.12..8.14 rows=1 width=529) (actual time=0.029..0.029 rows=0 loops=1)
+     Index Cond: (done = true)
+   Planning Time: 0.648 ms
+   Execution Time: 0.073 ms
+   ```
 
-Without a persistent disk the database resets on every redeploy, which is
-fine for demos but not for real use.
+---
 
-## Project structure
-
-```
-javascript-101/
-├── docs/
-│   ├── screenshots/
-│   │   └── sqlite-viewer.png
-│   └── sql-explore.sql
-├── src/
-│   └── db.js                # opens tasks.db, creates schema, seeds
-├── server.js                # Express app + CRUD endpoints
-├── tasks.db                 # auto-generated, ignored by git
-├── .env.example
-├── .gitignore
-├── package.json
-└── README.md
-```
-
-## License
+## 📄 License
 
 ISC

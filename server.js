@@ -1,9 +1,8 @@
 require('dotenv').config();
 
-require('./src/db');
-
 const express = require('express');
-const db = require('./src/db');
+const taskRepository = require('./src/repositories');
+const { pingRedis } = require('./src/redisClient');
 
 const app = express();
 app.set('json spaces', 2);
@@ -11,43 +10,55 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-const toTask = (row) => ({
-  id: row.id,
-  title: row.title,
-  done: Boolean(row.done),
-});
-
 app.get('/', (req, res) => {
   res.json({
-    message: 'Todo API running on SQLite',
-    db: process.env.DB_PATH || 'tasks.db',
+    message: 'Todo API running on PostgreSQL',
+    storage: process.env.STORAGE_TYPE || 'postgres',
+    database_url: process.env.DATABASE_URL ? '[CONFIGURED]' : '[LOCAL DEFAULT]',
   });
 });
 
-app.get('/api/todos', (req, res) => {
-  const rows = db.prepare('SELECT * FROM tasks ORDER BY id').all();
+app.get('/api/redis-ping', async (req, res) => {
+  const result = await pingRedis();
   res.json({
-    success: true,
-    count: rows.length,
-    data: rows.map(toTask),
+    success: result.status === 'up',
+    data: result,
   });
 });
 
-app.get('/api/todos/:id', (req, res) => {
+app.get('/api/todos', async (req, res) => {
+  try {
+    const tasks = await taskRepository.findAll();
+    res.json({
+      success: true,
+      count: tasks.length,
+      data: tasks,
+    });
+  } catch (error) {
+    console.error('Error fetching tasks:', error);
+    res.status(500).json({ success: false, error: 'Database query failed' });
+  }
+});
+
+app.get('/api/todos/:id', async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(404).json({ success: false, error: 'Task not found' });
   }
 
-  const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
-  if (!row) {
-    return res.status(404).json({ success: false, error: 'Task not found' });
+  try {
+    const task = await taskRepository.findById(id);
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+    res.json({ success: true, data: task });
+  } catch (error) {
+    console.error('Error fetching task by id:', error);
+    res.status(500).json({ success: false, error: 'Database query failed' });
   }
-
-  res.json({ success: true, data: toTask(row) });
 });
 
-app.post('/api/todos', (req, res) => {
+app.post('/api/todos', async (req, res) => {
   const { title, done } = req.body ?? {};
 
   if (typeof title !== 'string' || title.trim() === '') {
@@ -58,14 +69,16 @@ app.post('/api/todos', (req, res) => {
     return res.status(400).json({ success: false, error: 'Done must be a boolean' });
   }
 
-  const insert = db.prepare('INSERT INTO tasks (title, done) VALUES (?, ?)');
-  const result = insert.run(title.trim(), done ? 1 : 0);
-  const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
-
-  res.status(201).json({ success: true, data: toTask(row) });
+  try {
+    const newTask = await taskRepository.create({ title, done });
+    res.status(201).json({ success: true, data: newTask });
+  } catch (error) {
+    console.error('Error creating task:', error);
+    res.status(500).json({ success: false, error: 'Database insertion failed' });
+  }
 });
 
-app.put('/api/todos/:id', (req, res) => {
+app.put('/api/todos/:id', async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(404).json({ success: false, error: 'Task not found' });
@@ -81,42 +94,36 @@ app.put('/api/todos/:id', (req, res) => {
     return res.status(400).json({ success: false, error: 'Done must be a boolean' });
   }
 
-  const result = db
-    .prepare(
-      'UPDATE tasks SET title = COALESCE(?, title), done = COALESCE(?, done) WHERE id = ?'
-    )
-    .run(
-      title !== undefined ? title.trim() : null,
-      done !== undefined ? (done ? 1 : 0) : null,
-      id
-    );
-
-  if (result.changes === 0) {
-    return res.status(404).json({ success: false, error: 'Task not found' });
+  try {
+    const updatedTask = await taskRepository.update(id, { title, done });
+    if (!updatedTask) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+    res.json({ success: true, data: updatedTask });
+  } catch (error) {
+    console.error('Error updating task:', error);
+    res.status(500).json({ success: false, error: 'Database update failed' });
   }
-
-  const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
-  res.json({ success: true, data: toTask(row) });
 });
 
-app.delete('/api/todos/:id', (req, res) => {
+app.delete('/api/todos/:id', async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(404).json({ success: false, error: 'Task not found' });
   }
 
-  const result = db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
-
-  if (result.changes === 0) {
-    return res.status(404).json({ success: false, error: 'Task not found' });
+  try {
+    const deleted = await taskRepository.delete(id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+    res.json({ success: true, data: {} });
+  } catch (error) {
+    console.error('Error deleting task:', error);
+    res.status(500).json({ success: false, error: 'Database deletion failed' });
   }
-
-  res.json({ success: true, data: {} });
 });
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
-
