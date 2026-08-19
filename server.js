@@ -20,6 +20,84 @@ app.get('/', (req, res) => {
   });
 });
 
+app.post('/auth/signup', async (req, res) => {
+  const { email, password } = req.body ?? {};
+
+  if (!email || !password || typeof email !== 'string' || typeof password !== 'string' || email.trim() === '' || password.trim() === '') {
+    return res.status(400).json({
+      success: false,
+      error: 'Email and password are required',
+    });
+  }
+
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      user: data.user,
+      data: data.user,
+    });
+  } catch (err) {
+    console.error('Error in /auth/signup:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body ?? {};
+
+  if (!email || !password || typeof email !== 'string' || typeof password !== 'string' || email.trim() === '' || password.trim() === '') {
+    return res.status(400).json({
+      success: false,
+      error: 'Email and password are required',
+    });
+  }
+
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid login credentials',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+      session: data.session,
+      user: data.user,
+    });
+  } catch (err) {
+    console.error('Error in /auth/login:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+
+
 app.get('/api/redis-ping', async (req, res) => {
   const result = await pingRedis();
   res.json({
