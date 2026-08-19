@@ -107,7 +107,7 @@ app.get('/protected/profile', async (req, res) => {
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({
-      error: 'Access token required',
+      error: 'Invalid or expired token',
     });
   }
 
@@ -115,16 +115,16 @@ app.get('/protected/profile', async (req, res) => {
 
   if (!token || token.trim() === '') {
     return res.status(401).json({
-      error: 'Access token required',
+      error: 'Invalid or expired token',
     });
   }
 
   try {
     const { data, error } = await supabase.auth.getUser(token);
 
-    if (error || !data.user) {
+    if (error || !data || !data.user) {
       return res.status(401).json({
-        error: 'Access token required',
+        error: 'Invalid or expired token',
       });
     }
 
@@ -135,7 +135,7 @@ app.get('/protected/profile', async (req, res) => {
   } catch (err) {
     console.error('Error in /protected/profile:', err);
     res.status(401).json({
-      error: 'Access token required',
+      error: 'Invalid or expired token',
     });
   }
 });
