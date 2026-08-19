@@ -50,7 +50,37 @@ STORAGE_TYPE=postgres
 
 ---
 
-## 🛠️ Running with Docker Compose
+## ⚡ Quick 5-Minute Setup
+
+To run this authenticated API locally:
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/amarillaRodrigo/javascript-101.git
+   cd javascript-101
+   ```
+
+2. **Set up Environment Variables:**
+   Copy `.env.example` to `.env` and fill in your Supabase credentials (`SUPABASE_URL` and `SUPABASE_KEY`):
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Start the Application Stack:**
+   - **Option A (Docker Compose - Recommended):**
+     ```bash
+     docker compose up -d --build
+     ```
+   - **Option B (Node.js Local Dev):**
+     ```bash
+     npm install
+     npm run dev
+     ```
+
+4. **Access Interactive Documentation:**
+   Open [`http://localhost:3000/docs`](http://localhost:3000/docs) in your browser.
+
+---
 
 Start the complete application stack (PostgreSQL + Redis + Node App) with one command:
 
