@@ -7,10 +7,14 @@ const { pingRedis } = require('./src/redisClient');
 
 
 const requireAuth = require('./src/middleware/authMiddleware');
+const swaggerUi = require('swagger-ui-express');
+const openApiSpec = require('./openapi.json');
 
 const app = express();
 app.set('json spaces', 2);
 app.use(express.json());
+
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
 const PORT = process.env.PORT || 3000;
 

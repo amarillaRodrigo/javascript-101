@@ -121,19 +121,34 @@ Data persistence is guaranteed by the named volume `postgres_data` mounted at `/
 
 ---
 
-## 📡 API Endpoints
+## 📡 API Endpoints & Interactive Documentation
 
 Base URL: `http://localhost:3000`
 
-| Method | Path              | Description                          |
-|--------|-------------------|--------------------------------------|
-| GET    | `/`               | Health check + storage engine status |
-| GET    | `/api/redis-ping` | Ping Redis cache (Stretch feature)   |
-| GET    | `/api/todos`      | List all tasks                       |
-| GET    | `/api/todos/:id`  | Get a single task by ID              |
-| POST   | `/api/todos`      | Create a task (201 / 400)            |
-| PUT    | `/api/todos/:id`  | Update a task (200 / 404 / 400)     |
-| DELETE | `/api/todos/:id`  | Delete a task (200 / 404)            |
+Interactive OpenAPI / Swagger UI: [`http://localhost:3000/docs`](http://localhost:3000/docs)
+
+| Method | Path                  | Auth Required | Description                          |
+|--------|-----------------------|---------------|--------------------------------------|
+| GET    | `/`                   | No            | Health check + storage engine status |
+| GET    | `/docs`               | No            | Interactive Swagger UI documentation |
+| POST   | `/auth/signup`        | No            | Register new user via Supabase       |
+| POST   | `/auth/login`         | No            | Log in & obtain Bearer JWT tokens    |
+| POST   | `/auth/logout`        | **Yes**       | Log out active Supabase session      |
+| GET    | `/public/info`        | No            | Public welcome information           |
+| GET    | `/protected/profile`  | **Yes**       | User profile (guarded by middleware) |
+| GET    | `/protected/dashboard`| **Yes**       | User dashboard (guarded middleware)  |
+| GET    | `/api/redis-ping`     | No            | Ping Redis cache (Stretch feature)   |
+| GET    | `/api/todos`          | No            | List all tasks                       |
+| GET    | `/api/todos/:id`      | No            | Get a single task by ID              |
+| POST   | `/api/todos`          | No            | Create a task (201 / 400)            |
+| PUT    | `/api/todos/:id`      | No            | Update a task (200 / 404 / 400)     |
+| DELETE | `/api/todos/:id`      | No            | Delete a task (200 / 404)            |
+
+### 🔒 Interactive Swagger UI (`/docs`)
+
+Access [`http://localhost:3000/docs`](http://localhost:3000/docs) in your browser to test endpoints interactively. Protected routes (`/protected/*`, `/auth/logout`) feature a padlock icon and support Bearer JWT authorization.
+
+![Swagger UI](docs/screenshots/swagger-ui.png)
 
 ---
 
