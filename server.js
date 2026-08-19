@@ -6,6 +6,8 @@ const taskRepository = require('./src/repositories');
 const { pingRedis } = require('./src/redisClient');
 
 
+const requireAuth = require('./src/middleware/authMiddleware');
+
 const app = express();
 app.set('json spaces', 2);
 app.use(express.json());
@@ -96,48 +98,45 @@ app.post('/auth/login', async (req, res) => {
   }
 });
 
+app.post('/auth/logout', requireAuth, async (req, res) => {
+  try {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+      });
+    }
+
+    res.status(204).send();
+  } catch (err) {
+    console.error('Error in /auth/logout:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
 app.get('/public/info', (req, res) => {
   res.status(200).json({
     message: 'Welcome stranger! This info is public.',
   });
 });
 
-app.get('/protected/profile', async (req, res) => {
-  const authHeader = req.headers.authorization;
+app.get('/protected/profile', requireAuth, (req, res) => {
+  res.status(200).json({
+    message: 'Welcome to your protected profile!',
+    user: req.user,
+  });
+});
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      error: 'Invalid or expired token',
-    });
-  }
-
-  const token = authHeader.split(' ')[1];
-
-  if (!token || token.trim() === '') {
-    return res.status(401).json({
-      error: 'Invalid or expired token',
-    });
-  }
-
-  try {
-    const { data, error } = await supabase.auth.getUser(token);
-
-    if (error || !data || !data.user) {
-      return res.status(401).json({
-        error: 'Invalid or expired token',
-      });
-    }
-
-    res.status(200).json({
-      message: 'Welcome to your protected profile!',
-      user: data.user,
-    });
-  } catch (err) {
-    console.error('Error in /protected/profile:', err);
-    res.status(401).json({
-      error: 'Invalid or expired token',
-    });
-  }
+app.get('/protected/dashboard', requireAuth, (req, res) => {
+  res.status(200).json({
+    message: 'Welcome to your dashboard!',
+    user: req.user,
+  });
 });
 
 app.get('/api/redis-ping', async (req, res) => {
