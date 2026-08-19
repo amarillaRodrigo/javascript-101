@@ -1,8 +1,10 @@
 require('dotenv').config();
 
 const express = require('express');
+const supabase = require('./src/supabaseClient');
 const taskRepository = require('./src/repositories');
 const { pingRedis } = require('./src/redisClient');
+
 
 const app = express();
 app.set('json spaces', 2);
@@ -125,5 +127,6 @@ app.delete('/api/todos/:id', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT} and connected to Supabase`);
 });
+
